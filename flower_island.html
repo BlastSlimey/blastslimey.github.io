@@ -1,0 +1,1144 @@
+// This game prototype was (almost entirely) made by ChatGPT.
+// It serves as a groundwork for a future project, which will involve some rework that cannot be done by ChatGPT.
+// Please don't see it as AI slop, it will become more human-made at some point.
+// (Also, I could very well do all of this myself, but life's draining my free time.)
+
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Flower Merge Game</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+    }
+
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: Arial, sans-serif;
+
+      background:
+        linear-gradient(
+          to bottom,
+          #7ec8ff 0%,
+          #b8ecff 55%,
+          #7fe0ff 56%,
+          #3cc4e7 100%
+        );
+
+      height: 100vh;
+    }
+
+    /* =========================
+       HINTERGRUND
+    ========================= */
+
+    #scene {
+      position: fixed;
+      inset: 0;
+      overflow: hidden;
+      z-index: -100;
+      pointer-events: none;
+    }
+
+    #sun {
+      position: absolute;
+      top: 60px;
+      right: 120px;
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      background:
+        radial-gradient(circle, #fff7b0 0%, #ffd54f 70%);
+
+      box-shadow:
+        0 0 60px rgba(255,220,100,0.8);
+    }
+
+    .cloud1,
+    .cloud2 {
+      position: absolute;
+      width: 160px;
+      height: 55px;
+      background: rgba(255,255,255,0.8);
+      border-radius: 999px;
+    }
+
+    .cloud1 {
+      top: 90px;
+      left: 120px;
+    }
+
+    .cloud2 {
+      top: 150px;
+      left: 340px;
+    }
+
+    .cloud1::before,
+    .cloud1::after,
+    .cloud2::before,
+    .cloud2::after {
+      content: "";
+      position: absolute;
+      background: rgba(255,255,255,0.8);
+      border-radius: 50%;
+    }
+
+    .cloud1::before,
+    .cloud2::before {
+      width: 70px;
+      height: 70px;
+      left: 20px;
+      top: -25px;
+    }
+
+    .cloud1::after,
+    .cloud2::after {
+      width: 90px;
+      height: 90px;
+      right: 18px;
+      top: -40px;
+    }
+
+    /* =========================
+       GROßE INSEL
+    ========================= */
+
+    #island {
+      position: absolute;
+      bottom: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 950px;
+      height: 420px;
+    }
+
+    #sand {
+      position: absolute;
+      bottom: 0;
+      width: 100%;
+      height: 240px;
+
+      background:
+        radial-gradient(circle at top,
+          #f7e7a9,
+          #e6c66d
+        );
+
+      border-radius:
+        50% 50% 45% 45% /
+        75% 75% 30% 30%;
+
+      box-shadow:
+        inset 0 -18px 30px rgba(0,0,0,0.08);
+    }
+
+    /* =========================
+       PALME
+    ========================= */
+
+    #palm {
+      position: absolute;
+      left: 420px;
+      bottom: 150px;
+      width: 320px;
+      height: 520px;
+    }
+
+    .trunk {
+      position: absolute;
+      width: 42px;
+      height: 110px;
+
+      background:
+        linear-gradient(to right,
+          #6d3f1f,
+          #8a5528,
+          #5f3419
+        );
+
+      border-radius: 22px;
+      left: 0;
+
+      box-shadow:
+        inset -4px 0 8px rgba(0,0,0,0.15);
+    }
+
+    .trunk1 {
+      bottom: 0;
+      transform: rotate(-8deg);
+    }
+
+    .trunk2 {
+      bottom: 90px;
+      left: 20px;
+      transform: rotate(-12deg);
+    }
+
+    .trunk3 {
+      bottom: 180px;
+      left: 48px;
+      transform: rotate(-18deg);
+    }
+
+    .trunk4 {
+      bottom: 270px;
+      left: 90px;
+      transform: rotate(-24deg);
+    }
+
+    #palm .leaf {
+      position: absolute;
+
+      width: 240px;
+      height: 56px;
+
+      background:
+        linear-gradient(to right,
+          #1d8f3d,
+          #46bf5f
+        );
+
+      border-radius: 100% 0;
+
+      transform-origin: left center;
+
+      top: 0;
+      left: 118px;
+
+      box-shadow:
+        inset 0 -6px 10px rgba(0,0,0,0.1);
+    }
+
+    .leaf-a { transform: rotate(-78deg); }
+    .leaf-b { transform: rotate(-42deg); }
+    .leaf-c { transform: rotate(-5deg); }
+    .leaf-d { transform: rotate(30deg); }
+    .leaf-e { transform: rotate(68deg); }
+
+    #scene::after {
+      content: "";
+      position: absolute;
+      bottom: 0;
+      width: 100%;
+      height: 140px;
+
+      background:
+        repeating-linear-gradient(
+          to bottom,
+          rgba(255,255,255,0.10),
+          rgba(255,255,255,0.10) 2px,
+          transparent 2px,
+          transparent 10px
+        );
+
+      opacity: 0.5;
+    }
+
+    /* =========================
+       UI
+    ========================= */
+
+    #ui {
+      position: fixed;
+      top: 15px;
+      left: 15px;
+      z-index: 1000;
+
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+
+      background: rgba(255,255,255,0.85);
+      padding: 12px;
+      border-radius: 12px;
+
+      backdrop-filter: blur(5px);
+
+      box-shadow:
+        0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    #colorInput,
+    #mergeMode {
+      padding: 8px;
+      border-radius: 8px;
+      border: 1px solid #aaa;
+      font-size: 15px;
+    }
+
+    #colorInput {
+      width: 130px;
+    }
+
+    button {
+      padding: 8px 14px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+
+      background: #4caf50;
+      color: white;
+      font-size: 15px;
+
+      transition: 0.2s;
+    }
+
+    button:hover {
+      background: #43a047;
+      transform: scale(1.05);
+    }
+
+    #gameArea {
+      width: 100vw;
+      height: 100vh;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* =========================
+       BLUMEN
+    ========================= */
+
+    .flower {
+      position: absolute;
+      width: 90px;
+      height: 90px;
+      cursor: grab;
+      transform-origin: center center;
+      transition: transform 0.1s;
+    }
+
+    .flower:active {
+      cursor: grabbing;
+    }
+
+    .petal {
+      position: absolute;
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      top: 28px;
+      left: 28px;
+    }
+
+    .center {
+      position: absolute;
+      width: 28px;
+      height: 28px;
+      background: gold;
+      border-radius: 50%;
+      top: 31px;
+      left: 31px;
+      border: 2px solid #d4a500;
+      z-index: 5;
+    }
+
+    .stem {
+      position: absolute;
+      width: 6px;
+      height: 58px;
+      background: green;
+      left: 42px;
+      top: 62px;
+      border-radius: 4px;
+      z-index: -1;
+    }
+
+    .flower-leaf {
+      position: absolute;
+      width: 18px;
+      height: 10px;
+      background: #43a047;
+      border-radius: 50%;
+      top: 95px;
+    }
+
+    .flower-leaf.left {
+      left: 24px;
+      transform: rotate(-30deg);
+    }
+
+    .flower-leaf.right {
+      left: 48px;
+      transform: rotate(30deg);
+    }
+
+    /* =========================
+       TOOLTIP
+    ========================= */
+
+    #tooltip {
+      position: fixed;
+      pointer-events: none;
+
+      background: rgba(255,255,255,0.75);
+      backdrop-filter: blur(4px);
+
+      padding: 6px 10px;
+      border-radius: 8px;
+
+      font-size: 14px;
+      color: #222;
+
+      box-shadow:
+        0 2px 8px rgba(0,0,0,0.15);
+
+      opacity: 0;
+      transition: opacity 0.12s;
+
+      z-index: 9999;
+    }
+
+    /* =========================
+       MÜLLEIMER
+    ========================= */
+
+    #trash {
+      position: fixed;
+      right: 20px;
+      bottom: 20px;
+
+      width: 80px;
+      height: 80px;
+
+      border-radius: 18px;
+
+      background: rgba(255,255,255,0.8);
+      backdrop-filter: blur(6px);
+
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      font-size: 40px;
+
+      box-shadow:
+        0 4px 12px rgba(0,0,0,0.2);
+
+      z-index: 2000;
+
+      transition: 0.15s;
+    }
+
+    #trash.active {
+      transform: scale(1.1);
+      background: rgba(255,120,120,0.9);
+    }
+
+    /* Gelockte Blumen */
+
+.flower.locked .stem {
+  background: #c7b94a;
+}
+
+.flower.locked .flower-leaf {
+  background: #d8cf68;
+}
+  </style>
+</head>
+
+<body>
+
+  <!-- Szene -->
+
+  <div id="scene">
+
+    <div id="sun"></div>
+
+    <div class="cloud1"></div>
+    <div class="cloud2"></div>
+
+    <div id="island">
+
+      <div id="sand"></div>
+
+      <div id="palm">
+
+        <div class="trunk trunk1"></div>
+        <div class="trunk trunk2"></div>
+        <div class="trunk trunk3"></div>
+        <div class="trunk trunk4"></div>
+
+        <div class="leaf leaf-a"></div>
+        <div class="leaf leaf-b"></div>
+        <div class="leaf leaf-c"></div>
+        <div class="leaf leaf-d"></div>
+        <div class="leaf leaf-e"></div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- UI -->
+
+  <div id="ui">
+
+    <input
+      id="colorInput"
+      type="text"
+      placeholder="ff00ff:68"
+    />
+
+    <button onclick="spawnFlower()">
+      Blume erzeugen
+    </button>
+
+    <select id="mergeMode">
+
+      <option value="average">
+        Durchschnitt
+      </option>
+
+      <option value="additive">
+        Additiv
+      </option>
+
+      <option value="modulo">
+        Modulo-Additiv
+      </option>
+
+      <option value="subtractive">
+        Subtraktiv
+      </option>
+
+      <option value="maximum">
+        Maximum
+      </option>
+
+      <option value="minimum">
+        Minimum
+      </option>
+
+    </select>
+
+  </div>
+
+  <div id="tooltip"></div>
+
+  <div id="trash">
+    🗑️
+  </div>
+
+  <div id="gameArea"></div>
+
+  <script>
+
+    const gameArea = document.getElementById("gameArea");
+    const tooltip = document.getElementById("tooltip");
+    const trash = document.getElementById("trash");
+    const mergeModeSelect = document.getElementById("mergeMode");
+
+    const flowers = new Map();
+
+    let flowerIdCounter = 0;
+    let hoveredFlower = null;
+    let gHeld = false;
+
+    // Startblumen
+
+    createFlower("#ff0000", 120, 120);
+    createFlower("#0000ff", 320, 180);
+    createFlower("#00ff00", 520, 220);
+
+    document.addEventListener("keydown", (e) => {
+
+      if (e.key.toLowerCase() === "g") {
+        gHeld = true;
+      }
+
+    });
+
+    document.addEventListener("keyup", (e) => {
+
+      if (e.key.toLowerCase() === "g") {
+        gHeld = false;
+      }
+
+    });
+
+    // ENTER-TASTE
+
+    document
+      .getElementById("colorInput")
+      .addEventListener("keydown", (e) => {
+
+        if (e.key === "Enter") {
+          spawnFlower();
+        }
+
+      });
+
+    // =========================
+    // BLUME ERZEUGEN
+    // =========================
+
+    document.addEventListener("keydown", (e) => {
+
+      if (e.key.toLowerCase() !== "l") return;
+
+      if (!hoveredFlower) return;
+
+      hoveredFlower.classList.toggle("locked");
+    });
+
+    function spawnFlower() {
+
+      const input = document.getElementById("colorInput");
+
+      let value = input.value.trim();
+
+      let colorPart = value;
+      let genes = [6, 6];
+
+      // =========================
+      // GENE PARSEN
+      // Format:
+      // ff00ff:68
+      // =========================
+
+      if (value.includes(":")) {
+
+        const parts = value.split(":");
+
+        colorPart = parts[0].trim();
+
+        const geneString =
+          (parts[1] || "").trim();
+
+        // Nur gültig wenn exakt 2 Ziffern
+        if (/^[2-8]{2}$/.test(geneString)) {
+
+          genes = [
+            Number(geneString[0]),
+            Number(geneString[1])
+          ];
+        }
+        else {
+
+          alert(
+            "Gene müssen aus zwei Ziffern zwischen 2 und 8 bestehen."
+          );
+
+          return;
+        }
+      }
+
+      // =========================
+      // FARBE
+      // =========================
+
+      if (!colorPart.startsWith("#")) {
+        colorPart = "#" + colorPart;
+      }
+
+      if (!/^#([0-9A-F]{3}){1,2}$/i.test(colorPart)) {
+
+        alert("Bitte gültigen Hex-Code eingeben!");
+
+        return;
+      }
+
+      createFlower(
+        colorPart,
+        Math.random() * (window.innerWidth - 120),
+        Math.random() * (window.innerHeight - 220),
+        genes
+      );
+
+      input.value = "";
+    }
+
+    // =========================
+    // BLUME
+    // =========================
+
+    function createFlower(color, x, y, genes = [6, 6]) {
+
+      const flower = document.createElement("div");
+
+      flower.className = "flower";
+
+      const id = flowerIdCounter++;
+
+      flower.dataset.id = id;
+      flower.dataset.color = color;
+
+      flower.style.left = x + "px";
+      flower.style.top = y + "px";
+
+      flower.dataset.genes = JSON.stringify(genes);
+
+      // Dominantes Gen = kleinere Zahl
+      const petalCount = Math.min(genes[0], genes[1]);
+
+      const centerX = 45;
+      const centerY = 45;
+
+      let radius = 28;
+      let visibleSlots = petalCount;
+
+      // Natürlichere Verteilungen
+
+      if (petalCount <= 4) {
+        radius = 22;
+      }
+
+      if (petalCount === 2) {
+        visibleSlots = 4; // 4 Stellen, damit die 2 Blätter horizontal sind
+      }
+
+      if (petalCount === 6) {
+        visibleSlots = 8; // 2 Lücken
+      }
+
+      if (petalCount === 7) {
+        visibleSlots = 8; // 1 Lücke
+      }
+
+      let usedSlots = [];
+
+      // =========================
+      // SPEZIALFÄLLE
+      // =========================
+
+      // 2 Blätter → eher horizontal
+      if (petalCount === 2) {
+
+        usedSlots = [1, 3];
+        
+      }
+
+      // 6 Blätter → zwei gegenüberliegende Lücken
+      else if (petalCount === 6) {
+
+        // Startposition der ersten Lücke
+        const gap =
+          Math.floor(Math.random() * 4);
+
+        // Gegenüberliegende Lücke
+        const oppositeGap =
+          (gap + 4) % 8;
+
+        for (let i = 0; i < 8; i++) {
+
+          if (i !== gap && i !== oppositeGap) {
+            usedSlots.push(i);
+          }
+        }
+      }
+
+      // Standardfälle
+      else {
+
+        while (usedSlots.length < petalCount) {
+
+          const slot =
+            Math.floor(Math.random() * visibleSlots);
+
+          if (!usedSlots.includes(slot)) {
+            usedSlots.push(slot);
+          }
+        }
+      }
+
+      usedSlots.sort((a, b) => a - b);
+
+      for (let i = 0; i < petalCount; i++) {
+
+        const slot = usedSlots[i];
+
+        let angle =
+          (Math.PI * 2 * slot) / visibleSlots
+          - Math.PI / 2;
+
+        // Kleine natürliche Verdrehung
+        if (petalCount <= 4) {
+
+          angle +=
+            (Math.random() - 0.5) * 0.55;
+        }
+
+        const px =
+          centerX + Math.cos(angle) * radius - 17;
+
+        const py =
+          centerY + Math.sin(angle) * radius - 17;
+
+        const petal = document.createElement("div");
+
+        petal.className = "petal";
+        petal.style.background = color;
+
+        petal.style.left = px + "px";
+        petal.style.top = py + "px";
+
+        // Blütenblätter leicht drehen
+        petal.style.transform =
+          `rotate(${(angle * 180 / Math.PI) + 90}deg)`;
+
+        flower.appendChild(petal);
+      }
+
+      const center = document.createElement("div");
+      center.className = "center";
+      flower.appendChild(center);
+
+      const stem = document.createElement("div");
+      stem.className = "stem";
+      flower.appendChild(stem);
+
+      const leafLeft = document.createElement("div");
+      leafLeft.className = "flower-leaf left";
+      flower.appendChild(leafLeft);
+
+      const leafRight = document.createElement("div");
+      leafRight.className = "flower-leaf right";
+      flower.appendChild(leafRight);
+
+      // Tooltip
+
+      flower.addEventListener("mouseenter", () => {
+
+        hoveredFlower = flower;
+
+        const genes = JSON.parse(flower.dataset.genes);
+
+        tooltip.innerHTML =
+          `
+          <b>${flower.dataset.color}</b><br>
+          Gene: ${genes[0]} / ${genes[1]}
+          `;
+        tooltip.style.opacity = "1";
+
+      });
+
+      flower.addEventListener("mouseleave", () => {
+
+        if (hoveredFlower === flower) {
+          hoveredFlower = null;
+        }
+
+        tooltip.style.opacity = "0";
+
+      });
+
+      flower.addEventListener("mousemove", (e) => {
+
+        tooltip.style.left = (e.clientX + 14) + "px";
+        tooltip.style.top = (e.clientY + 14) + "px";
+
+      });
+
+      makeDraggable(flower);
+
+      gameArea.appendChild(flower);
+
+      flowers.set(id, flower);
+
+      return flower;
+    }
+
+    // =========================
+    // DRAG & DROP
+    // =========================
+
+    function makeDraggable(element) {
+
+      let offsetX = 0;
+      let offsetY = 0;
+      let isDragging = false;
+
+      // Rechtsklick = Duplizieren
+
+      element.addEventListener("contextmenu", (e) => {
+
+        e.preventDefault();
+
+        const color = element.dataset.color;
+
+        let genes = [6, 6];
+
+        // G gedrückt → Gene übernehmen
+        if (gHeld) {
+          genes = JSON.parse(element.dataset.genes);
+        }
+
+        const newFlower = createFlower(
+          color,
+          parseFloat(element.style.left) + 30,
+          parseFloat(element.style.top) + 30,
+          genes
+        );
+
+        if (element.classList.contains("locked")) {
+          newFlower.classList.add("locked");
+        }
+
+      });
+
+      // Linksklick ziehen
+
+      element.addEventListener("mousedown", (e) => {
+
+        if (e.button !== 0) return;
+
+        isDragging = true;
+
+        offsetX = e.clientX - element.offsetLeft;
+        offsetY = e.clientY - element.offsetTop;
+
+        element.style.transform = "scale(1.1)";
+      });
+
+      document.addEventListener("mousemove", (e) => {
+
+        if (!isDragging) return;
+
+        element.style.left = (e.clientX - offsetX) + "px";
+        element.style.top = (e.clientY - offsetY) + "px";
+
+        const trashRect = trash.getBoundingClientRect();
+        const flowerRect = element.getBoundingClientRect();
+
+        const overTrash =
+          flowerRect.left < trashRect.right &&
+          flowerRect.right > trashRect.left &&
+          flowerRect.top < trashRect.bottom &&
+          flowerRect.bottom > trashRect.top;
+
+        if (overTrash) {
+          trash.classList.add("active");
+        } else {
+          trash.classList.remove("active");
+        }
+
+      });
+
+      document.addEventListener("mouseup", () => {
+
+        if (!isDragging) return;
+
+        isDragging = false;
+
+        element.style.transform = "scale(1)";
+
+        const trashRect = trash.getBoundingClientRect();
+        const flowerRect = element.getBoundingClientRect();
+
+        const overTrash =
+          flowerRect.left < trashRect.right &&
+          flowerRect.right > trashRect.left &&
+          flowerRect.top < trashRect.bottom &&
+          flowerRect.bottom > trashRect.top;
+
+        // Löschen
+
+        if (overTrash) {
+
+          flowers.delete(Number(element.dataset.id));
+
+          element.remove();
+
+          trash.classList.remove("active");
+
+          return;
+        }
+
+        trash.classList.remove("active");
+
+        // Merge prüfen
+
+        checkMerge(element);
+
+      });
+    }
+
+    // =========================
+    // MERGE CHECK
+    // =========================
+
+    function checkMerge(activeFlower) {
+
+      const rect1 = activeFlower.getBoundingClientRect();
+
+      for (const [id, otherFlower] of flowers.entries()) {
+
+        if (otherFlower === activeFlower) continue;
+
+        const rect2 = otherFlower.getBoundingClientRect();
+
+        const overlap =
+          rect1.left < rect2.right &&
+          rect1.right > rect2.left &&
+          rect1.top < rect2.bottom &&
+          rect1.bottom > rect2.top;
+
+        if (overlap) {
+
+          mergeFlowers(activeFlower, otherFlower);
+
+          break;
+        }
+      }
+    }
+
+    // =========================
+    // MERGEN
+    // =========================
+
+    function mergeFlowers(f1, f2) {
+
+      if (
+        f1.classList.contains("locked") ||
+        f2.classList.contains("locked")
+      ) {
+        return;
+      }
+
+      const c1 = hexToRgb(f1.dataset.color);
+      const c2 = hexToRgb(f2.dataset.color);
+
+      const mode = mergeModeSelect.value;
+
+      const merged = {
+
+        r: mergeChannel(c1.r, c2.r, mode),
+        g: mergeChannel(c1.g, c2.g, mode),
+        b: mergeChannel(c1.b, c2.b, mode)
+
+      };
+
+      const newColor = rgbToHex(
+        merged.r,
+        merged.g,
+        merged.b
+      );
+
+      // =========================
+      // GENE VERERBUNG
+      // =========================
+
+      const genes1 = JSON.parse(f1.dataset.genes);
+      const genes2 = JSON.parse(f2.dataset.genes);
+
+      // Zufälliges Gen von jedem Elternteil
+      let geneA =
+        genes1[Math.floor(Math.random() * 2)];
+
+      let geneB =
+        genes2[Math.floor(Math.random() * 2)];
+
+      // Mutation 10%
+
+      if (Math.random() < 0.1) {
+        geneA = randomGene();
+      }
+
+      if (Math.random() < 0.1) {
+        geneB = randomGene();
+      }
+
+      const newGenes = [geneA, geneB];
+
+      const x =
+        (parseFloat(f1.style.left) +
+         parseFloat(f2.style.left)) / 2;
+
+      const y =
+        (parseFloat(f1.style.top) +
+         parseFloat(f2.style.top)) / 2;
+
+      flowers.delete(Number(f1.dataset.id));
+      flowers.delete(Number(f2.dataset.id));
+
+      f1.remove();
+      f2.remove();
+
+      createFlower(newColor, x, y, newGenes);
+    }
+
+    // =========================
+    // MERGE-MODI
+    // =========================
+
+    function mergeChannel(a, b, mode) {
+
+      switch (mode) {
+
+        case "average":
+          return Math.floor((a + b) / 2);
+
+        case "additive":
+          return Math.min(a + b, 255);
+
+        case "modulo":
+          return (a + b) % 256;
+
+        case "subtractive":
+          return Math.abs(a - b);
+
+        case "maximum":
+          return Math.max(a, b);
+
+        case "minimum":
+          return Math.min(a, b);
+
+        default:
+          return Math.floor((a + b) / 2);
+      }
+    }
+
+    // =========================
+    // FARBKONVERTIERUNG
+    // =========================
+
+    function randomGene() {
+      return Math.floor(Math.random() * 7) + 2;
+    }
+
+    function hexToRgb(hex) {
+
+      hex = hex.replace("#", "");
+
+      if (hex.length === 3) {
+        hex = hex
+          .split("")
+          .map(c => c + c)
+          .join("");
+      }
+
+      const bigint = parseInt(hex, 16);
+
+      return {
+        r: (bigint >> 16) & 255,
+        g: (bigint >> 8) & 255,
+        b: bigint & 255
+      };
+    }
+
+    function rgbToHex(r, g, b) {
+
+      return (
+        "#" +
+        [r, g, b]
+          .map(v =>
+            Math.max(0, Math.min(255, v))
+              .toString(16)
+              .padStart(2, "0")
+          )
+          .join("")
+      );
+    }
+
+  </script>
+
+</body>
+</html>
