@@ -433,13 +433,28 @@
 
     /* Gelockte Blumen */
 
-.flower.locked .stem {
-  background: #c7b94a;
-}
+    .flower.locked .stem {
+      background: #c7b94a;
+    }
 
-.flower.locked .flower-leaf {
-  background: #d8cf68;
-}
+    .flower.locked .flower-leaf {
+      background: #d8cf68;
+    }
+
+    #unknownToggleLabel {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+
+      font-size: 14px;
+    }
+
+    #geneCopyToggleLabel {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 14px;
+    }
   </style>
 </head>
 
@@ -517,7 +532,58 @@
         Minimum
       </option>
 
+      <option value="and">
+        AND
+      </option>
+
+      <option value="or">
+        OR
+      </option>
+
+      <option value="xor">
+        XOR
+      </option>
+
+      <option value="nand">
+        NAND
+      </option>
+
+      <option value="nor">
+        NOR
+      </option>
+
+      <option value="xnor">
+        XNOR
+      </option>
+
+      <option value="random">
+        Random
+      </option>
+
     </select>
+
+    <select id="savedColors">
+      <option value="">
+        Gespeicherte Farben...
+      </option>
+    </select>
+
+    <label id="unknownToggleLabel">
+      <input
+        type="checkbox"
+        id="showUnknownColors"
+        checked
+      >
+      Unbenannte Farben anzeigen
+    </label>
+
+    <label id="geneCopyToggleLabel">
+      <input
+        type="checkbox"
+        id="alwaysCopyGenes"
+      >
+      Gene beim Duplizieren übernehmen
+    </label>
 
   </div>
 
@@ -529,24 +595,140 @@
 
   <div id="gameArea"></div>
 
+  <script src="colornames.js"></script>
+
   <script>
 
     const gameArea = document.getElementById("gameArea");
     const tooltip = document.getElementById("tooltip");
     const trash = document.getElementById("trash");
     const mergeModeSelect = document.getElementById("mergeMode");
+    const savedColorsSelect =
+      document.getElementById("savedColors");
+    const showUnknownColorsCheckbox =
+      document.getElementById("showUnknownColors");
+    const alwaysCopyGenesCheckbox =
+      document.getElementById("alwaysCopyGenes");
 
+    const discoveredColors = new Set();
     const flowers = new Map();
+    const colorNames = new Map();
 
     let flowerIdCounter = 0;
     let hoveredFlower = null;
     let gHeld = false;
 
-    // Startblumen
+    // =========================
+    // FESTE FARBNAMEN-LISTE
+    // =========================
+
+    const colorNamesRaw = COLOR_NAMES_RAW;
+
+    function loadColorNames() {
+
+      const lines =
+        colorNamesRaw.trim().split("\n");
+
+      for (const line of lines) {
+
+        const parts = line.split(",");
+
+        if (parts.length < 2) continue;
+
+        let hex =
+          parts[0].trim().toLowerCase();
+
+        const name =
+          parts[1].trim();
+
+        if (!hex.startsWith("#")) {
+          hex = "#" + hex;
+        }
+
+        colorNames.set(hex, name);
+      }
+    }
+
+    // Sofort laden
+    loadColorNames();
 
     createFlower("#ff0000", 120, 120);
     createFlower("#0000ff", 320, 180);
     createFlower("#00ff00", 520, 220);
+
+    function registerColor(color) {
+
+      color = color.toLowerCase();
+
+      if (discoveredColors.has(color)) {
+        return;
+      }
+
+      discoveredColors.add(color);
+
+      refreshSavedColorsDropdown();
+    }
+
+    function refreshSavedColorsDropdown() {
+
+      // Alles außer erste Option löschen
+
+      savedColorsSelect.innerHTML =
+        `
+        <option value="">
+          Gespeicherte Farben...
+        </option>
+        `;
+
+      for (const color of discoveredColors) {
+
+        const hasName =
+          colorNames.has(color);
+
+        // Unbenannte verstecken
+        if (
+          !hasName &&
+          !showUnknownColorsCheckbox.checked
+        ) {
+          continue;
+        }
+
+        const option =
+          document.createElement("option");
+
+        option.value = color;
+
+        option.textContent =
+          hasName
+            ? colorNames.get(color)
+            : color;
+
+        savedColorsSelect.appendChild(option);
+      }
+    }
+
+    showUnknownColorsCheckbox.addEventListener(
+      "change",
+      refreshSavedColorsDropdown
+    );
+
+    // Dropdown → Farbe spawnen
+
+    savedColorsSelect.addEventListener("change", () => {
+
+      const color = savedColorsSelect.value;
+
+      if (!color) return;
+
+      createFlower(
+        color,
+        Math.random() * (window.innerWidth - 120),
+        Math.random() * (window.innerHeight - 220),
+        [6, 6]
+      );
+
+      savedColorsSelect.value = "";
+    });
 
     document.addEventListener("keydown", (e) => {
 
@@ -660,7 +842,7 @@
     // BLUME
     // =========================
 
-    function createFlower(color, x, y, genes = [6, 6]) {
+    function createFlower(color, x, y, genes = [6, 6], generation = 1) {
 
       const flower = document.createElement("div");
 
@@ -670,11 +852,13 @@
 
       flower.dataset.id = id;
       flower.dataset.color = color;
+      registerColor(color);
 
       flower.style.left = x + "px";
       flower.style.top = y + "px";
 
       flower.dataset.genes = JSON.stringify(genes);
+      flower.dataset.generation = generation;
 
       // Dominantes Gen = kleinere Zahl
       const petalCount = Math.min(genes[0], genes[1]);
@@ -814,7 +998,8 @@
         tooltip.innerHTML =
           `
           <b>${flower.dataset.color}</b><br>
-          Gene: ${genes[0]} / ${genes[1]}
+          Gene: ${genes[0]} / ${genes[1]}<br>
+          g.${flower.dataset.generation}
           `;
         tooltip.style.opacity = "1";
 
@@ -865,17 +1050,20 @@
         const color = element.dataset.color;
 
         let genes = [6, 6];
+        let generation = 1;
 
         // G gedrückt → Gene übernehmen
-        if (gHeld) {
+        if (gHeld || alwaysCopyGenesCheckbox.checked) {
           genes = JSON.parse(element.dataset.genes);
+          generation = Number(element.dataset.generation);
         }
 
         const newFlower = createFlower(
-          color,
-          parseFloat(element.style.left) + 30,
-          parseFloat(element.style.top) + 30,
-          genes
+            color,
+            parseFloat(element.style.left) + 30,
+            parseFloat(element.style.top) + 30,
+            genes,
+            generation
         );
 
         if (element.classList.contains("locked")) {
@@ -1008,11 +1196,36 @@
 
       const mode = mergeModeSelect.value;
 
+      let actualMode = mode;
+
+      if (mode === "random") {
+
+        const modes = [
+          "average",
+          "additive",
+          "modulo",
+          "subtractive",
+          "maximum",
+          "minimum",
+          "and",
+          "or",
+          "xor",
+          "nand",
+          "nor",
+          "xnor"
+        ];
+
+        actualMode =
+          modes[
+            Math.floor(Math.random() * modes.length)
+          ];
+      }
+
       const merged = {
 
-        r: mergeChannel(c1.r, c2.r, mode),
-        g: mergeChannel(c1.g, c2.g, mode),
-        b: mergeChannel(c1.b, c2.b, mode)
+        r: mergeChannel(c1.r, c2.r, actualMode),
+        g: mergeChannel(c1.g, c2.g, actualMode),
+        b: mergeChannel(c1.b, c2.b, actualMode)
 
       };
 
@@ -1021,6 +1234,12 @@
         merged.g,
         merged.b
       );
+
+      const generation =
+          Math.max(
+              Number(f1.dataset.generation),
+              Number(f2.dataset.generation)
+          ) + 1;
 
       // =========================
       // GENE VERERBUNG
@@ -1062,7 +1281,7 @@
       f1.remove();
       f2.remove();
 
-      createFlower(newColor, x, y, newGenes);
+      createFlower(newColor, x, y, newGenes, generation);
     }
 
     // =========================
@@ -1090,6 +1309,24 @@
 
         case "minimum":
           return Math.min(a, b);
+
+        case "and":
+          return a & b;
+
+        case "or":
+          return a | b;
+
+        case "xor":
+          return a ^ b;
+
+        case "nand":
+          return (~(a & b)) & 255;
+
+        case "nor":
+          return (~(a | b)) & 255;
+
+        case "xnor":
+          return (~(a ^ b)) & 255;
 
         default:
           return Math.floor((a + b) / 2);
