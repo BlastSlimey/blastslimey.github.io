@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Flower Merge Game</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+    }
+
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: Arial, sans-serif;
+      background: linear-gradient(to bottom, #bde0fe, #d8f3dc);
+      height: 100vh;
+    }
+
+    #ui {
+      position: fixed;
+      top: 15px;
+      left: 15px;
+      z-index: 1000;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      background: rgba(255,255,255,0.85);
+      padding: 12px;
+      border-radius: 12px;
+      backdrop-filter: blur(5px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    #colorInput {
+      width: 120px;
+      padding: 8px;
+      border-radius: 8px;
+      border: 1px solid #aaa;
+      font-size: 16px;
+    }
+
+    button {
+      padding: 8px 14px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      background: #4caf50;
+      color: white;
+      font-size: 15px;
+      transition: 0.2s;
+    }
+
+    button:hover {
+      background: #43a047;
+      transform: scale(1.05);
+    }
+
+    #gameArea {
+      width: 100vw;
+      height: 100vh;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .flower {
+      position: absolute;
+      width: 90px;
+      height: 90px;
+      cursor: grab;
+      transform-origin: center center;
+      transition: transform 0.1s;
+    }
+
+    .flower:active {
+      cursor: grabbing;
+    }
+
+    .petal {
+      position: absolute;
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      top: 28px;
+      left: 28px;
+    }
+
+    .center {
+      position: absolute;
+      width: 28px;
+      height: 28px;
+      background: gold;
+      border-radius: 50%;
+      top: 31px;
+      left: 31px;
+      border: 2px solid #d4a500;
+      z-index: 5;
+    }
+
+    .stem {
+      position: absolute;
+      width: 6px;
+      height: 45px;
+      background: green;
+      left: 42px;
+      top: 75px;
+      border-radius: 4px;
+      z-index: -1;
+    }
+
+    .leaf {
+      position: absolute;
+      width: 18px;
+      height: 10px;
+      background: #43a047;
+      border-radius: 50%;
+      top: 95px;
+    }
+
+    .leaf.left {
+      left: 24px;
+      transform: rotate(-30deg);
+    }
+
+    .leaf.right {
+      left: 48px;
+      transform: rotate(30deg);
+    }
+
+    #info {
+      position: fixed;
+      right: 15px;
+      top: 15px;
+      background: rgba(255,255,255,0.85);
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-size: 14px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="ui">
+    <input id="colorInput" type="text" placeholder="#ff0000"/>
+    <button onclick="spawnFlower()">Blume erzeugen</button>
+  </div>
+
+  <div id="info">
+    Ziehe Blumen aufeinander, um sie zu mergen 🌸
+  </div>
+
+  <div id="gameArea"></div>
+
+  <script>
+    const gameArea = document.getElementById("gameArea");
+    const flowers = new Map();
+
+    let flowerIdCounter = 0;
+
+    // Zufällige Startblumen
+    createFlower("#ff0000", 100, 120);
+    createFlower("#0000ff", 300, 180);
+    createFlower("#00ff00", 500, 220);
+
+    function spawnFlower() {
+      const input = document.getElementById("colorInput");
+      let color = input.value.trim();
+
+      if (!/^#([0-9A-F]{3}){1,2}$/i.test(color)) {
+        alert("Bitte gültigen Hex-Code eingeben!");
+        return;
+      }
+
+      createFlower(
+        color,
+        Math.random() * (window.innerWidth - 120),
+        Math.random() * (window.innerHeight - 180)
+      );
+
+      input.value = "";
+    }
+
+    function createFlower(color, x, y) {
+      const flower = document.createElement("div");
+      flower.className = "flower";
+
+      const id = flowerIdCounter++;
+      flower.dataset.id = id;
+      flower.dataset.color = color;
+
+      flower.style.left = x + "px";
+      flower.style.top = y + "px";
+
+      // 6 Blütenblätter
+      const positions = [
+        [28, 0],
+        [56, 28],
+        [28, 56],
+        [0, 28],
+        [8, 8],
+        [48, 48]
+      ];
+
+      positions.forEach(([px, py]) => {
+        const petal = document.createElement("div");
+        petal.className = "petal";
+        petal.style.background = color;
+        petal.style.left = px + "px";
+        petal.style.top = py + "px";
+        flower.appendChild(petal);
+      });
+
+      const center = document.createElement("div");
+      center.className = "center";
+      flower.appendChild(center);
+
+      const stem = document.createElement("div");
+      stem.className = "stem";
+      flower.appendChild(stem);
+
+      const leafLeft = document.createElement("div");
+      leafLeft.className = "leaf left";
+      flower.appendChild(leafLeft);
+
+      const leafRight = document.createElement("div");
+      leafRight.className = "leaf right";
+      flower.appendChild(leafRight);
+
+      makeDraggable(flower);
+
+      gameArea.appendChild(flower);
+
+      flowers.set(id, flower);
+    }
+
+    function makeDraggable(element) {
+      let offsetX = 0;
+      let offsetY = 0;
+      let isDragging = false;
+
+      element.addEventListener("mousedown", (e) => {
+        isDragging = true;
+
+        offsetX = e.clientX - element.offsetLeft;
+        offsetY = e.clientY - element.offsetTop;
+
+        element.style.transform = "scale(1.1)";
+      });
+
+      document.addEventListener("mousemove", (e) => {
+        if (!isDragging) return;
+
+        element.style.left = (e.clientX - offsetX) + "px";
+        element.style.top = (e.clientY - offsetY) + "px";
+      });
+
+      document.addEventListener("mouseup", () => {
+        if (!isDragging) return;
+
+        isDragging = false;
+        element.style.transform = "scale(1)";
+
+        checkMerge(element);
+      });
+    }
+
+    function checkMerge(activeFlower) {
+      const rect1 = activeFlower.getBoundingClientRect();
+
+      for (const [id, otherFlower] of flowers.entries()) {
+
+        if (otherFlower === activeFlower) continue;
+
+        const rect2 = otherFlower.getBoundingClientRect();
+
+        const overlap =
+          rect1.left < rect2.right &&
+          rect1.right > rect2.left &&
+          rect1.top < rect2.bottom &&
+          rect1.bottom > rect2.top;
+
+        if (overlap) {
+          mergeFlowers(activeFlower, otherFlower);
+          break;
+        }
+      }
+    }
+
+    function mergeFlowers(f1, f2) {
+      const color1 = hexToRgb(f1.dataset.color);
+      const color2 = hexToRgb(f2.dataset.color);
+
+      const merged = {
+        r: Math.floor((color1.r + color2.r) / 2),
+        g: Math.floor((color1.g + color2.g) / 2),
+        b: Math.floor((color1.b + color2.b) / 2)
+      };
+
+      const newColor = rgbToHex(merged.r, merged.g, merged.b);
+
+      const x =
+        (parseFloat(f1.style.left) + parseFloat(f2.style.left)) / 2;
+
+      const y =
+        (parseFloat(f1.style.top) + parseFloat(f2.style.top)) / 2;
+
+      flowers.delete(Number(f1.dataset.id));
+      flowers.delete(Number(f2.dataset.id));
+
+      f1.remove();
+      f2.remove();
+
+      createFlower(newColor, x, y);
+    }
+
+    function hexToRgb(hex) {
+      hex = hex.replace("#", "");
+
+      if (hex.length === 3) {
+        hex = hex.split("").map(c => c + c).join("");
+      }
+
+      const bigint = parseInt(hex, 16);
+
+      return {
+        r: (bigint >> 16) & 255,
+        g: (bigint >> 8) & 255,
+        b: bigint & 255
+      };
+    }
+
+    function rgbToHex(r, g, b) {
+      return (
+        "#" +
+        [r, g, b]
+          .map(x => x.toString(16).padStart(2, "0"))
+          .join("")
+      );
+    }
+  </script>
+
+</body>
+</html>
